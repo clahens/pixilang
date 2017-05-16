@@ -1,0 +1,20 @@
+set -e
+
+make clean
+
+./MAKE_LINUX_X86
+make clean
+
+./MAKE_LINUX_X86_64
+make clean
+
+./MAKE_WIN32
+make clean
+
+./MAKE_WIN32_CONSOLE
+make clean
+
+./MAKE_WINCE
+make clean
+
+./MAKE_ANDROID

@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merger version="3"><dataSet config="main"><source path="/home/alex/my_soft/lib_sundog/various/android/alib/src/main/assets"/><source path="/home/alex/my_soft/lib_sundog/various/android/alib/build/generated/assets/shaders/release"/></dataSet><dataSet config="release"><source path="/home/alex/my_soft/lib_sundog/various/android/alib/src/release/assets"/></dataSet></merger>

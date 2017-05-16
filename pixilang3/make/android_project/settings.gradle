@@ -1,0 +1,3 @@
+include ':app'
+include ':alib'
+project( ':alib' ).projectDir = new File( '../../../lib_sundog/various/android/alib' )

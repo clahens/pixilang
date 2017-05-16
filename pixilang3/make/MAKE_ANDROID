@@ -1,0 +1,13 @@
+set -e
+
+make -j8 TARGET_OS=linux_android TARGET_ARCH=arm COLOR_TYPE=COLOR32BITS
+make install TARGET_OS=linux_android TARGET_ARCH=arm
+make clean
+
+make -j8 TARGET_OS=linux_android TARGET_ARCH=arm FLOAT_ABI=softfp COLOR_TYPE=COLOR32BITS
+make install TARGET_OS=linux_android TARGET_ARCH=arm FLOAT_ABI=softfp
+make clean
+
+make -j8 TARGET_OS=linux_android TARGET_ARCH=x86 COLOR_TYPE=COLOR32BITS
+make install TARGET_OS=linux_android TARGET_ARCH=x86
+make clean

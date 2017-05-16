@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<items version="2" >
+
+    <item
+        is-multidex="false"
+        jar="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/exploded-aar/android_project/alib/unspecified/jars/libs/aspectjrt-1.8.4.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="23.0.1"
+        sha1="2cfb817afeca191752fa72eb268ad561563a1b6e">
+        <dex dex="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/pre-dexed/release/aspectjrt-1.8.4_d28e5e4e60daaec2e0dd90183bbbdc4f2d34c5ee.jar" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/exploded-aar/android_project/alib/unspecified/jars/libs/android-1.2.2675.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="23.0.1"
+        sha1="0111d84a2dc0810d004e25514bbace6333abb571">
+        <dex dex="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/pre-dexed/release/android-1.2.2675_02aae053dd2771b47186d3954206dd405e34fec1.jar" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/incremental-runtime-classes/debug/instant-run.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="23.0.1"
+        sha1="276f1b193622ac80dcccf4d473a510e7e23d3146">
+        <dex dex="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/transforms/dex/debug/folders/1000/10/instant-run_b58bbe583b6ccad9b5529463e057ec19c2455b26/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/exploded-aar/android_project/alib/unspecified/jars/libs/aspectjrt-1.8.4.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="23.0.1"
+        sha1="2cfb817afeca191752fa72eb268ad561563a1b6e">
+        <dex dex="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/transforms/dex/debug/folders/1000/8/aspectjrt-1.8.4_d28e5e4e60daaec2e0dd90183bbbdc4f2d34c5ee/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/exploded-aar/android_project/alib/unspecified/jars/libs/android-1.2.2675.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="23.0.1"
+        sha1="0111d84a2dc0810d004e25514bbace6333abb571">
+        <dex dex="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/transforms/dex/debug/folders/1000/8/android-1.2.2675_02aae053dd2771b47186d3954206dd405e34fec1/classes.dex" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/exploded-aar/android_project/alib/unspecified/jars/classes.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="23.0.1"
+        sha1="2e6ada0772fae5043e54af3c36bc2888ae274a98">
+        <dex dex="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/pre-dexed/release/android_project-alib-unspecified_2cb80eb76516cc28238d9e8881c7659680cec68b.jar" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/exploded-aar/android_project/alib/unspecified/jars/libs/domain-1.2.2675.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="23.0.1"
+        sha1="e2af025056184c7ec4c03b71ffa3529745230f22">
+        <dex dex="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/pre-dexed/release/domain-1.2.2675_c34995aaa3b95f6c82e9504f8e3080eb516b5000.jar" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/exploded-aar/android_project/alib/unspecified/jars/libs/isoparser-1.0.5.4.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="23.0.1"
+        sha1="d29dd9691ac3e10b49a607efa206fb78f4bb9d75">
+        <dex dex="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/pre-dexed/release/isoparser-1.0.5.4_63f426a97bfc648ec21ea91c5e3ffbc16f55a6b9.jar" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/exploded-aar/android_project/alib/unspecified/jars/libs/isoparser-1.0.5.4.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="23.0.1"
+        sha1="d29dd9691ac3e10b49a607efa206fb78f4bb9d75">
+        <dex dex="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/transforms/dex/debug/folders/1000/8/isoparser-1.0.5.4_63f426a97bfc648ec21ea91c5e3ffbc16f55a6b9/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/exploded-aar/android_project/alib/unspecified/jars/libs/domain-1.2.2675.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="23.0.1"
+        sha1="e2af025056184c7ec4c03b71ffa3529745230f22">
+        <dex dex="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/transforms/dex/debug/folders/1000/8/domain-1.2.2675_c34995aaa3b95f6c82e9504f8e3080eb516b5000/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/incremental-classes/debug/instant-run-bootstrap.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="23.0.1"
+        sha1="dadaac8d9b3b313bdc3324077b5d55ebbf81518e">
+        <dex dex="/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/transforms/dex/debug/folders/1000/10/instant-run-bootstrap_1dda3390e5b740aad4b1cd47e31b479cfc94d9e8/classes.dex" />
+    </item>
+
+</items>

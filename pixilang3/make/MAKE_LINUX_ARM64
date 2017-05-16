@@ -1,0 +1,3 @@
+set -e
+make -j8 TARGET_OS=linux_sdl TARGET_ARCH=arm64 COLOR_TYPE=COLOR16BITS
+make install TARGET_OS=linux_sdl TARGET_ARCH=arm64

@@ -1,0 +1,4 @@
+set -e
+
+make -j8 TARGET_OS=linux_x11_opengl TARGET_ARCH=arm COLOR_TYPE=COLOR32BITS
+make install TARGET_OS=linux_x11_opengl TARGET_ARCH=arm

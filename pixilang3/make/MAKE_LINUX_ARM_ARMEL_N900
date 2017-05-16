@@ -1,0 +1,3 @@
+set -e
+make TARGET_OS=linux_x11_opengles TARGET_ARCH=arm FLOAT_ABI=soft COLOR_TYPE=COLOR32BITS
+make install TARGET_OS=linux_x11_opengles TARGET_ARCH=arm FLOAT_ABI=soft ARCH_SUFFIX=_armel

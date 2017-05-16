@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/res/merged/debug/raw/hash",
+        "source": "/home/alex/my_soft/pixilang3/make/android_project/app/src/main/res/raw/hash"
+    },
+    {
+        "merged": "/home/alex/my_soft/pixilang3/make/android_project/app/build/intermediates/res/merged/debug/raw/files",
+        "source": "/home/alex/my_soft/pixilang3/make/android_project/app/src/main/res/raw/files"
+    }
+]

@@ -1,0 +1,27 @@
+//
+// Prefix header for all source files of the 'pixilang' target in the 'pixilang' project
+//
+
+#import <Availability.h>
+
+#ifndef __IPHONE_3_0
+    #warning "This project uses features only available in iPhone SDK 3.0 and later."
+#endif
+
+#ifdef __OBJC__
+    #import <UIKit/UIKit.h>
+    #import <Foundation/Foundation.h>
+#endif
+
+#define IPHONE
+#define OPENGL 
+#define GLNORETAIN
+#define GLZBUF
+#define COLOR16BITS 
+#define CPUMARK 0
+#define NOVIDEO
+#define NOVCAP
+#define MAX_FPS 60
+
+//For lib_gif:
+#include "lib_gif/config.h"

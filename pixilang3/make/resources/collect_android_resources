@@ -1,0 +1,7 @@
+rm -f -R ../android_project/app/src/main/res/raw
+mkdir ../android_project/app/src/main/res/raw
+cd ../../
+zip -0 -r files.zip examples lib
+cksum files.zip >hash
+mv -f files.zip make/android_project/app/src/main/res/raw/files
+mv -f hash make/android_project/app/src/main/res/raw

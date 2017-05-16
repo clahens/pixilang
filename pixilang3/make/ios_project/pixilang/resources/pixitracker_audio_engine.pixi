@@ -1,0 +1,1286 @@
+/*
+    pixitracker_audio_engine.pixi
+    This file is part of PixiTracker.
+
+    Copyright (c) 2011 - 2012, Alexander Zolotov <nightradio@gmail.com>
+    http://www.warmplace.ru
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to 
+    deal in the Software without restriction, including without limitation the 
+    rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+    sell copies of the Software, and to permit persons to whom the Software is 
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in 
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+    IN THE SOFTWARE.
+*/
+
+//
+// Config
+//
+
+max_sounds = 16
+max_patterns = 256
+max_tracks = 12
+max_octaves = 10
+def_pat_lines = 16
+def_pat_tracks = 4
+
+//
+//
+//
+
+pta_file_name = -1
+
+//Create or not default pats and sounds:
+pta_no_pats = 0
+pta_no_sounds = 0
+
+fn pta_init()
+{
+    fputs( "PixiTracker Audio Engine Init ...\n" )
+    
+    remove( pta_file_name )
+    pta_file_name = -1
+    
+    if def_pat_tracks > max_tracks { max_tracks = def_pat_tracks }
+
+    pta_mutex = mutex_create()
+
+    sounds = new( max_sounds, 1, INT ) //First channel
+    sounds2 = new( max_sounds, 1, INT ) //Second channel (if exists)
+    sounds_rate = new( max_sounds, 1, INT )
+    sounds_ch = new( max_sounds, 1, INT )
+    sounds_fine = new( max_sounds, 1, INT )
+    sounds_rel = new( max_sounds, 1, INT )
+    sounds_vol = new( max_sounds, 1, INT )
+    sounds_off = new( max_sounds, 1, INT ) //Offset 1 - sound begin
+    sounds_off2 = new( max_sounds, 1, INT ) //Offset 2 - sound end (0 - whole sound)
+    clean( sounds, -1 )
+    clean( sounds2, -1 )
+    clean( sounds_rate, 44100 )
+    clean( sounds_ch, 1 )
+    clean( sounds_fine, 0 )
+    clean( sounds_rel, 0 )
+    clean( sounds_vol, 100 )
+    clean( sounds_off, 0 )
+    clean( sounds_off2, 0 )
+    
+    pta_spreview = -1
+    pta_spreview2 = -1
+    
+    samplers = new( max_tracks * 2, 1, INT ) //First channel
+    samplers2 = new( max_tracks * 2, 1, INT ) //Second channel (if exists)
+    sampler_snd = new( max_tracks * 2, 1, INT )
+    sampler_vol = new( max_tracks * 2, 1, INT )
+    sampler_ac = new( max_tracks * 2, 1, INT ) //Anticlick amplitudes
+    sampler_ac2 = new( max_tracks * 2, 1, INT ) //Anticlick amplitudes (second channel)
+    sampler_acc = new( max_tracks * 2, 1, INT ) //Anticlick counters
+    clean( sampler_snd, -1 )
+    clean( sampler_ac )
+    clean( sampler_ac2 )
+    clean( sampler_acc )
+    i = 0 while( i < max_tracks * 2 )
+    {
+	smp = new( SMP_INFO_SIZE, 1, INT32 )
+	smp2 = new( SMP_INFO_SIZE, 1, INT32 )
+	samplers[ i ] = smp
+	samplers2[ i ] = smp2
+	clean( samplers[ i ] )
+	clean( samplers2[ i ] )
+	smp[ SMP_SRC ] = -1
+	if pta_1bit { smp[ SMP_FLAGS ] = 0 } else { smp[ SMP_FLAGS ] = SMP_FLAG_INTERP2 }
+	smp2[ SMP_SRC ] = -1
+	if pta_1bit { smp2[ SMP_FLAGS ] = 0 } else { smp2[ SMP_FLAGS ] = SMP_FLAG_INTERP2 }
+	sampler_vol[ i ] = 0
+	i + 1
+    }
+    sampler_buf = new( 16000, 1, INT16 )
+    
+    pats = new( max_patterns, 1, INT )
+    clean( pats, -1 )
+    if pta_no_pats == 0 
+    {
+	pats[ 0 ] = new( def_pat_tracks, def_pat_lines, INT32 )
+	clean( pats[ 0 ] )
+    }
+    pattab = new( 1, 1, INT16 )
+    clean( pattab, 0 )
+
+    FREQ = 44100
+    BPM = 125		//Beats per minute
+    LPB = 4		//Lines per beat
+    TPL = 6		//Ticks per line
+    VOLUME = 50		//In percents
+
+    ticks_reset_req = 0
+    tick_counter = 0	//From 0 to 256 * tick_size
+    tick_counter2 = 0	//From 0 to TPL
+    line_counter = 0
+    cur_pat = 0
+    play_status = 0	//0 - stop; 1 - play; 2 - play pattern
+    
+    if pta_no_sounds == 0
+    {
+	$f = fopen( "01.wav", "rb" )
+	if $f == 0
+	{
+	    $f = fopen( "1.wav", "rb" )
+	}
+	if $f 
+	{
+	    fclose( $f )
+	    $i = 0 while( $i < max_sounds )
+	    {
+		$ts = ""
+		sprintf( $ts, "%02u.wav", $i + 1 )
+		pta_load_sound( $ts, $i )
+		sprintf( $ts, "%d.wav", $i + 1 )
+		pta_load_sound( $ts, $i )
+		$i + 1
+	    }
+	}
+	else
+	{
+	    pta_load_soundpack( "pack01_default.pixipack" )
+	}
+    }
+    
+    pta_midi_event = new( 1, 1, INT8 )
+    pta_midi_client = midi_open_client( "PixiTracker MIDI Client" )
+    pta_midi_port = -1
+    pta_midi_dev = -1
+    pta_load_midi_settings()
+    
+    REC_FILE = "1:/out.wav"
+    rec = 0
+    rec_frames = 0
+    rec_buf_size = 128 * 1024
+    rec_buf = new( rec_buf_size, 1, INT16 )
+    rec_buf2 = new( rec_buf_size, 1, INT16 )
+    rec_wp = 0
+    rec_rp = 0
+    rec_f = 0
+    rec_temp32 = new( 1, 1, INT32 )
+    rec_temp16 = new( 1, 1, INT16 )
+    rec_thread_exit = 0
+    rec_thread = thread_create( pta_rec_thread_handler, 0 )
+
+    pta_channels = 2
+    pta_audio_flags = AUDIO_FLAG_INTERP2
+    if pta_1bit { pta_channels = 1 pta_audio_flags = 0 }
+    set_audio_callback( pta_audio_callback, 0, FREQ, INT16, pta_channels, pta_audio_flags )
+    
+    pta_no_pats = 0
+    pta_no_sounds = 0
+}
+
+fn pta_deinit()
+{
+    fputs( "PixiTracker Audio Engine Deinit ...\n" )
+
+    set_audio_callback( -1 )
+    
+    rec_thread_exit = 1 
+    thread_destroy( rec_thread, 500 )
+    remove( rec_temp32 )
+    remove( rec_temp16 )
+    
+    midi_close_port( pta_midi_client, pta_midi_port )
+    midi_close_client( pta_midi_client )
+    remove( pta_midi_dev )
+    remove( pta_midi_event )
+    
+    i = 0 while( i < max_sounds )
+    {
+	remove( sounds[ i ] )
+	remove( sounds2[ i ] )
+	i + 1
+    }
+    remove( sounds )
+    remove( sounds2 )
+    remove( sounds_rate )
+    remove( sounds_ch )
+    remove( sounds_fine )
+    remove( sounds_rel )
+    remove( sounds_vol )
+    remove( sounds_off )
+    remove( sounds_off2 )
+    i = 0 while( i < max_patterns )
+    {
+	remove( pats[ i ] )
+	i + 1
+    }
+    remove( pats )
+    remove( pattab )
+    
+    i = 0 while( i < max_tracks * 2 )
+    {
+	remove( samplers[ i ] )
+	remove( samplers2[ i ] )
+	i + 1
+    }
+    remove( samplers )
+    remove( samplers2 )
+    remove( sampler_vol )
+    remove( sampler_ac )
+    remove( sampler_ac2 )
+    remove( sampler_acc )
+    remove( sampler_buf )
+    remove( sampler_snd )
+    
+    mutex_destroy( pta_mutex )
+}
+
+fn pta_load_midi_settings()
+{
+    pta_lock()
+    
+    remove( pta_midi_dev )
+    pta_midi_dev = -1
+    pta_midi_ch = 0
+    $f = fopen( "2:/.pxtracker_midi", "rb" )
+    if $f 
+    {
+	pta_midi_dev = new( 256, 1, INT8 )
+	clean( pta_midi_dev )
+	fread( pta_midi_dev, 256, $f )
+	if pta_midi_dev[ 0 ] == 0
+	{
+	    remove( pta_midi_dev )
+	    pta_midi_dev = -1
+	}
+	pta_midi_ch = fgetc( $f )
+	fclose( $f )
+    }
+    midi_close_port( pta_midi_client, pta_midi_port )
+    pta_midi_port = midi_open_port( pta_midi_client, "PixiTracker MIDI IN Port", pta_midi_dev, MIDI_PORT_READ )
+    
+    pta_unlock()
+}
+
+fn pta_save_midi_settings()
+{
+    $f = fopen( "2:/.pxtracker_midi", "wb" )
+    if $f 
+    {
+	$s = fwrite( pta_midi_dev, 256, $f )
+	if $s < 0 { $s = 0 }
+	$i = $s while( $i < 256 )
+	{
+	    fputc( 0, $f )
+	    $i + 1
+	}
+	fputc( pta_midi_ch, $f )
+	fclose( $f )
+    }
+}
+
+fn pta_lock()
+{
+    mutex_lock( pta_mutex )
+}
+
+fn pta_unlock()
+{
+    mutex_unlock( pta_mutex )
+}
+
+fn pta_play( $status )
+{
+    pta_lock()
+    pta_reset()
+    play_status = $status
+    if play_status > 0
+    {
+	ticks_reset_req = 1
+    }
+    pta_unlock()
+}
+
+fn pta_reset()
+{
+    pta_lock()
+    $i = 0 while( $i < max_tracks * 2 )
+    {
+	smp = samplers[ $i ]
+	smp2 = samplers2[ $i ]
+	smp[ SMP_SRC ] = -1
+	smp2[ SMP_SRC ] = -1
+	sampler_snd[ $i ] = -1
+	sampler_vol[ $i ] = 0
+	sampler_ac[ $i ] = 0
+	sampler_ac2[ $i ] = 0
+	sampler_acc[ $i ] = 0
+	$i + 1
+    }
+    pta_unlock()
+}
+
+fn pta_set_event( $track, $note, $snd_num, $vel )
+{
+    pta_lock()
+    pta_set_event_nolock( $track, $note, $snd_num, $vel )
+    pta_unlock()
+}
+
+fn pta_set_event_nolock( $track, $note, $snd_num, $vel )
+{
+    sampler_snd[ $track ] = $snd_num
+    if $snd_num < 0
+    {
+	$snd_cont = pta_spreview
+	$vol = 100
+	$rel = pta_spreview_rel
+	$fine = pta_spreview_fine
+	$off = pta_spreview_off
+	$off2 = pta_spreview_off2
+    }
+    else
+    {
+	$snd_cont = sounds[ $snd_num ]
+	$vol = sounds_vol[ $snd_num ]
+	$rel = sounds_rel[ $snd_num ]
+	$fine = sounds_fine[ $snd_num ]
+	$off = sounds_off[ $snd_num ]
+	$off2 = sounds_off2[ $snd_num ]
+    }
+    if $snd_cont >= 0
+    {
+	$smp = samplers[ $track ]
+	if( $smp[ SMP_SRC ] >= 0 )
+	{
+	    sampler_acc[ $track ] = 64 //Anticlick
+	}
+	$smp[ SMP_SRC ] = $snd_cont
+	$smp[ SMP_SRC_OFF_H ] = $off
+	$smp[ SMP_SRC_OFF_L ] = 0
+	$smp[ SMP_SRC_SIZE ] = $off2
+	$smp[ SMP_LOOP_LEN ] = 0
+	sampler_vol[ $track ] = ( ( ( $vel * 32768 ) div 100 ) * $vol ) div 100
+	$smp[ SMP_DELTA ] = pta_get_delta( get_note_freq( $note + $rel, $fine ) )
+	$smp2 = samplers2[ $track ]
+	if sounds_ch[ $snd_num ] > 1
+	{
+	    $snd_cont = sounds2[ $snd_num ]
+	    $smp2[ SMP_SRC ] = $snd_cont
+	    $smp2[ SMP_SRC_OFF_H ] = $off
+	    $smp2[ SMP_SRC_OFF_L ] = 0
+	    $smp2[ SMP_SRC_SIZE ] = $off2
+	    $smp2[ SMP_LOOP_LEN ] = 0
+	    $smp2[ SMP_DELTA ] = $smp[ SMP_DELTA ];
+	}
+	else
+	{
+	    $smp2[ SMP_SRC ] = -1
+	}
+    }
+    else
+    {
+	$smp[ SMP_SRC ] = -1
+	$smp2[ SMP_SRC ] = -1
+    }
+}
+
+fn pta_clear_sound( $slot )
+{
+    pta_lock()
+    
+    remove( sounds[ $slot ] )
+    sounds[ $slot ] = -1
+    remove( sounds2[ $slot ] )
+    sounds2[ $slot ] = -1
+    
+    pta_unlock()
+}
+
+fn pta_save_sound( $name, $slot )
+{
+    $snd = sounds[ $slot ]
+    if $snd >= 0
+    {
+	$size = get_size( $snd )
+	$s = clone( $snd )
+	if sounds_ch[ $slot ] > 1
+	{
+	    resize( $s, $size * 2, 1 )
+	    copy( $s, $snd, 0, 0, $size, 2, 1 )
+	    copy( $s, sounds2[ $slot ], 1, 0, $size, 2, 1 )
+	}
+	set_prop( $s, "sample_rate", sounds_rate[ $slot ] )
+	set_prop( $s, "channels", sounds_ch[ $slot ] )
+	save( $s, $name, FORMAT_WAVE )
+	remove( $s )
+    }
+}
+
+fn pta_load_sound( $name, $slot )
+{
+    pta_lock()
+    
+    $s = load( $name )
+    if $s >= 0
+    {
+	pta_clear_sound( $slot )
+	
+	if get_type( $s ) == INT8
+	{
+	    convert_type( $s, INT16 )
+	    op_cn( OP_LSHIFT, $s, 8 )
+	}
+	if get_type( $s ) == INT32
+	{
+	    op_cn( OP_RSHIFT, $s, 16 )
+	    convert_type( $s, INT16 )
+	}
+	if get_type( $s ) == FLOAT32
+	{
+	    op_cn( OP_MUL, $s, 32767 )
+	    convert_type( $s, INT16 )
+	}
+
+	$rate = get_prop( $s, "sample_rate", 44100 )
+	$channels = get_prop( $s, "channels", 1 )
+	$size = get_size( $s ) div $channels
+	sounds_rate[ $slot ] = $rate
+	sounds_ch[ $slot ] = $channels
+	sounds_fine[ $slot ] = 0
+	sounds_rel[ $slot ] = 0
+	sounds_vol[ $slot ] = 100
+	sounds_off[ $slot ] = 0
+	sounds_off2[ $slot ] = 0
+	sounds[ $slot ] = $s
+	if $channels > 1 
+	{
+	    if pta_1bit
+	    {
+		sounds_ch[ $slot ] = 1
+	    }
+	    else
+	    {
+		$s2 = new( $size, 1, INT16 )
+		copy( $s2, $s, 0, 1, $size, 1, $channels )
+		sounds2[ $slot ] = $s2
+	    }
+	    copy( $s, $s, 0, 0, $size, 1, $channels )
+	    resize( $s, $size, 1 )
+	}
+	if strcmp( $name, REC_FILE ) == 0 
+	{
+	    if rec_max_amp < 32767
+            {
+                //Normalize:
+                op_cn( OP_MUL_RSHIFT15, $s, ( 32767 << 15 ) / rec_max_amp )
+            }
+    	    if $size > 1024
+    	    {
+		envelope2p( $s, 0, 32768, 0, 512 )
+		envelope2p( $s, 32768, 0, $size - 512, 512 )
+	    }
+            if pta_1bit
+	    {
+		//op_cn( OP_ABS, $s, 0 )
+		op_cn( OP_SMUL, $s, 4 )
+	    }
+	}
+    }
+    
+    pta_unlock()
+}
+
+fn pta_load_num( $f )
+{
+    if g_chunk == 0 { g_chunk = new( 8, 1, INT32 ) }
+    fread( g_chunk, 4, $f )
+    ret( g_chunk[ 0 ] )
+}
+
+fn pta_load_data( $f )
+{
+    if g_chunk == 0 { g_chunk = new( 8, 1, INT32 ) }
+    fread( g_chunk, 4 * 3, $f )
+    $esize = g_chunk[ 0 ]
+    if $esize == 1 { $etype = INT8 }
+    if $esize == 2 { $etype = INT16 }
+    if $esize == 4 { $etype = INT32 }
+    $d = new( g_chunk[ 1 ], g_chunk[ 2 ], $etype )
+    if $d >= 0
+    {
+	fread( $d, get_size( $d ) * $esize, $f )
+    }
+    else
+    {
+	load_data_error = 1
+    }
+    ret( $d )
+}
+
+fn pta_load_soundpack( $name )
+{
+    pta_no_deinit = 1
+    pta_load_song( $name )
+}
+
+fn pta_load_soundpack_sound( $name, $snd_num, $slot )
+{
+    pta_no_deinit = 1
+    pta_snd_preview = $snd_num + 1
+    pta_load_song( $name )
+    if pta_spreview >= 0
+    {
+	pta_lock()
+	remove( sounds[ $slot ] )
+	sounds[ $slot ] = pta_spreview
+	sounds_ch[ $slot ] = pta_spreview_ch
+	sounds_fine[ $slot ] = pta_spreview_fine
+	sounds_rate[ $slot ] = pta_spreview_rate
+	sounds_rel[ $slot ] = pta_spreview_rel
+	sounds_vol[ $slot ] = pta_spreview_vol
+	sounds_off[ $slot ] = pta_spreview_off
+	sounds_off2[ $slot ] = pta_spreview_off2
+	pta_spreview = -1
+	if pta_spreview_ch > 1
+	{
+	    remove( sounds2[ $slot ] )
+	    sounds2[ $slot ] = pta_spreview2
+	    pta_spreview2 = -1
+	}
+	pta_unlock()
+    }
+}
+
+fn pta_load_soundpack_preview( $name, $snd_num )
+{
+    pta_no_deinit = 1
+    pta_snd_preview = $snd_num + 1
+    pta_load_song( $name )
+    pta_set_event( max_tracks, 5 * 12 + 6, -1, 100 )
+}
+
+fn pta_load_song( $name )
+{
+    $rv = 0    
+    load_data_error = 0
+    
+    $f = fopen( $name, "rb" )
+    if $f
+    {
+	$chunk_id = new( 1, 1, INT32 )
+	$chunk_size = new( 1, 1, INT32 )
+	
+	$first_pat = 1
+	
+	$sign = "########"
+	fread( $sign, 8, $f )
+	if strcmp( $sign, "PIXIMOD1" ) != 0
+	{
+	    fputs( "ERROR: unknown signature " ) fputs( $sign ) fputs( "\n" )
+	    go pta_sload_end
+	}
+
+	if pta_no_deinit == 0
+	{
+	    pta_deinit()
+	    pta_no_pats = 1
+	    pta_no_sounds = 1
+	    pta_init()
+	}
+	pta_no_deinit = 0
+	
+	$patnum = 0
+	$sndnum = 0
+	
+	if pta_snd_preview
+	{
+	    pta_spreview_ch = 1
+	    pta_spreview_fine = 0
+	    pta_spreview_rate = 44100
+	    pta_spreview_rel = 0
+	    pta_spreview_vol = 100
+	    pta_spreview_off = 0
+	    pta_spreview_off2 = 0
+	}
+	
+        $break = 0
+	while( $break == 0 )
+	{
+	    fread( $chunk_id, 4, $f )
+	    fread( $chunk_size, 4, $f )
+	    $id = $chunk_id[ 0 ]
+	    $size = $chunk_size[ 0 ]
+	    if feof( $f ) { go pta_sload_end }
+	    pta_lock()
+	    if $id == 'SNDN' { $sndnum = pta_load_num( $f ) }
+	    if pta_snd_preview
+	    {
+		if $id == 'SNDN'
+		{
+		    go next_chunk
+		}
+		if pta_snd_preview - 1 == $sndnum
+		{
+		    if $id == 'SND1' { remove( pta_spreview ) pta_spreview = pta_load_data( $f ) go next_chunk }
+		    if $id == 'SND2' { remove( pta_spreview2 ) pta_spreview2 = pta_load_data( $f ) go next_chunk }
+		    if $id == 'CHAN' { pta_spreview_ch = pta_load_num( $f ) go next_chunk }
+		    if $id == 'FINE' { pta_spreview_fine = pta_load_num( $f ) go next_chunk }
+		    if $id == 'RELN' { pta_spreview_rel = pta_load_num( $f ) go next_chunk }
+		    if $id == 'RATE' { pta_spreview_rate = pta_load_num( $f ) go next_chunk }
+		    if $id == 'SVOL' { pta_spreview_vol = pta_load_num( $f ) go next_chunk }
+		    if $id == 'SOFF' { pta_spreview_off = pta_load_num( $f ) go next_chunk }
+		    if $id == 'SOF2' { pta_spreview_off2 = pta_load_num( $f ) go next_chunk }
+		}
+	    }
+	    else
+	    {
+		if $id == 'SNDN' 
+		{  
+		    sounds_ch[ $sndnum ] = 1
+		    sounds_rate[ $sndnum ] = 44100
+		    sounds_fine[ $sndnum ] = 0
+		    sounds_rel[ $sndnum ] = 0
+		    sounds_vol[ $sndnum ] = 100
+		    sounds_off[ $sndnum ] = 0
+		    sounds_off2[ $sndnum ] = 0
+		    go next_chunk 
+		}
+		if $id == 'BPM ' { BPM = pta_load_num( $f ) go next_chunk }
+		if $id == 'LPB ' { LPB = pta_load_num( $f ) go next_chunk }
+		if $id == 'TPL ' { TPL = pta_load_num( $f ) go next_chunk }
+		if $id == 'VOL ' { VOLUME = pta_load_num( $f ) go next_chunk }
+		if $id == 'PATT' { remove( pattab ) pattab = pta_load_data( $f ) go next_chunk }
+		if $id == 'PATN' { $patnum = pta_load_num( $f ) go next_chunk }
+		if $id == 'PATD' { 
+                    pats[ $patnum ] = pta_load_data( $f )
+                    $pat_tracks = get_xsize( pats[ $patnum ] )
+                    $pat_lines = get_ysize( pats[ $patnum ] )
+                    if $first_pat
+                    {
+                    	def_pat_tracks = 1
+			def_pat_lines = 1
+                	$first_pat = 0
+                    }
+                    if $pat_tracks > max_tracks
+                    {
+                        fputs( "Can't load this song. Too many tracks.\n" )
+                        $rv = 1
+                        $break = 1
+                    }
+                    if $pat_tracks > def_pat_tracks { def_pat_tracks = $pat_tracks }
+                    if $pat_lines > def_pat_lines { def_pat_lines = $pat_lines }
+                    go next_chunk 
+                }
+		if $id == 'CHAN' { sounds_ch[ $sndnum ] = pta_load_num( $f ) go next_chunk }
+		if $id == 'RATE' { sounds_rate[ $sndnum ] = pta_load_num( $f ) go next_chunk }
+		if $id == 'FINE' { sounds_fine[ $sndnum ] = pta_load_num( $f ) go next_chunk }
+		if $id == 'RELN' { sounds_rel[ $sndnum ] = pta_load_num( $f ) go next_chunk }
+		if $id == 'SVOL' { sounds_vol[ $sndnum ] = pta_load_num( $f ) go next_chunk }
+		if $id == 'SOFF' { sounds_off[ $sndnum ] = pta_load_num( $f ) go next_chunk }
+		if $id == 'SOF2' { sounds_off2[ $sndnum ] = pta_load_num( $f ) go next_chunk }
+		if $id == 'SND1' { remove( sounds[ $sndnum ] ) sounds[ $sndnum ] = pta_load_data( $f ) go next_chunk }
+		if $id == 'SND2' { remove( sounds2[ $sndnum ] ) sounds2[ $sndnum ] = pta_load_data( $f ) go next_chunk }
+	    }
+	    //Unknown chunk:
+	    fseek( $f, $size, SEEK_CUR )
+next_chunk:
+	    pta_unlock()
+	    if load_data_error 
+	    { 
+		fputs( "Song loading error.\n" )
+		$rv = 1
+		$break = 1
+	    }
+	}
+	
+pta_sload_end:
+	
+	remove( $chunk_id )
+	remove( $chunk_size )
+	fclose( $f )
+    }
+    
+    pta_snd_preview = 0
+
+    ret( $rv )
+}
+
+fn pta_save_dchunk( $f, $id, $data )
+{
+    if g_chunk == 0 { g_chunk = new( 8, 1, INT32 ) }
+    g_chunk[ 0 ] = $id fwrite( g_chunk, 4, $f )
+    g_chunk[ 0 ] = get_size( $data ) * get_esize( $data ) + 4 * 3 fwrite( g_chunk, 4, $f )
+    g_chunk[ 0 ] = get_esize( $data ) fwrite( g_chunk, 4, $f )
+    g_chunk[ 0 ] = get_xsize( $data ) fwrite( g_chunk, 4, $f )
+    g_chunk[ 0 ] = get_ysize( $data ) fwrite( g_chunk, 4, $f )
+    fwrite( $data, get_size( $data ) * get_esize( $data ), $f )
+}
+
+fn pta_save_nchunk( $f, $id, $num )
+{
+    if g_chunk == 0 { g_chunk = new( 8, 1, INT32 ) }
+    g_chunk[ 0 ] = $id fwrite( g_chunk, 4, $f )
+    g_chunk[ 0 ] = 4 fwrite( g_chunk, 4, $f )
+    g_chunk[ 0 ] = $num fwrite( g_chunk, 4, $f )
+}
+
+fn pta_save_soundpack( $name )
+{
+    pta_save_sounds_only = 1
+    pta_save_song( $name )
+}
+
+fn pta_save_song( $name, $dont_save_name )
+{
+    $rv = 0
+    
+    $ds = 0
+    if $0 > 1
+    {
+	if $dont_save_name 
+	{
+	    $ds = 1
+	}
+    }
+    if $ds == 0
+    {
+	$p = pta_file_name
+	pta_file_name = clone( $name )
+	remove( $p )
+	$name = pta_file_name
+    }
+    
+    $f = fopen( $name, "wb" )
+    if $f
+    {
+	//Signature:
+	fwrite( "PIXIMOD1", 8, $f )
+        
+	if pta_save_sounds_only == 0
+	{
+	    //Song parameters:
+	    pta_save_nchunk( $f, 'BPM ', BPM )
+	    pta_save_nchunk( $f, 'LPB ', LPB )
+	    pta_save_nchunk( $f, 'TPL ', TPL )
+	    pta_save_nchunk( $f, 'VOL ', VOLUME )
+	
+	    //Patterns:
+	    pta_save_dchunk( $f, 'PATT', pattab )
+	    $i = 0 while( $i < max_patterns )
+	    {
+		$pat = pats[ $i ]
+		if $pat >= 0
+		{
+		    pta_save_nchunk( $f, 'PATN', $i )
+		    pta_save_dchunk( $f, 'PATD', $pat )
+		}
+		$i + 1
+	    }
+	}
+	pta_save_sounds_only = 0
+	
+	//Sounds:
+	$i = 0 while( $i < max_sounds )
+	{
+	    $snd = sounds[ $i ]
+	    if $snd >= 0
+	    {
+		pta_save_nchunk( $f, 'SNDN', $i )
+		pta_save_nchunk( $f, 'CHAN', sounds_ch[ $i ] )
+		pta_save_nchunk( $f, 'RATE', sounds_rate[ $i ] )
+		pta_save_nchunk( $f, 'FINE', sounds_fine[ $i ] )
+		pta_save_nchunk( $f, 'RELN', sounds_rel[ $i ] )
+		pta_save_nchunk( $f, 'SVOL', sounds_vol[ $i ] )
+		pta_save_nchunk( $f, 'SOFF', sounds_off[ $i ] )
+		pta_save_nchunk( $f, 'SOF2', sounds_off2[ $i ] )
+		pta_save_dchunk( $f, 'SND1', $snd )
+		if sounds_ch[ $i ] > 1
+		{
+		    pta_save_dchunk( $f, 'SND2', sounds2[ $i ] )
+		}
+	    }
+	    $i + 1
+	}
+	
+	fclose( $f )
+    }
+    else
+    {
+	$rv = 1
+	printf( "Can't open %s for writing\n", $name );
+    }
+    
+    ret( $rv )
+}
+
+fn pta_export_wav( $name )
+{
+    set_audio_callback( -1 )
+    
+    pta_reset()
+    
+    play_status = 1
+    cur_pat = 0
+    ticks_reset_req = 1
+    
+    $one_tick = ( ( ( FREQ * 60 ) << 8 ) div BPM ) div ( LPB * TPL )
+    $len1 = 0
+    $len2 = 0
+    $i = 0 while( $i < get_size( pattab ) )
+    {
+	$pat = pats[ pattab[ $i ] ]
+	if $pat >= 0
+	{
+	    $pat_lines = get_ysize( $pat )
+	    $add = $pat_lines * TPL * $one_tick
+	    $len1 + $add >> 8
+	    $len2 + $add & 255
+	    if $len2 > 255
+	    {
+		$len2 - 256
+		$len1 + 1
+	    }
+	}
+	$i + 1
+    }
+
+    $buf_size = 1024
+    $buf = new( $buf_size * 2, 1, INT16 )
+    $ch1 = new( $buf_size, 1, INT16 )
+    $ch2 = new( $buf_size, 1, INT16 )
+    $ch = new( pta_channels, 1, INT )
+    $ch[ 0 ] = $ch1
+    $ch[ 1 ] = $ch2
+    
+    $f = fopen( $name, "wb" )
+    if $f
+    {
+	$v = new( 4, 1, INT32 )
+	
+	//WAV header:
+	$sdata_size = $len1 * 4
+	fwrite( "RIFF", 4, $f )
+	$v[ 0 ] = 4 + 24 + 8 + $sdata_size fwrite( $v, 4, $f )
+	fwrite( "WAVE", 4, $f )
+	
+	//WAV FORMAT:
+	fwrite( "fmt ", 4, $f )
+	$v[ 0 ] = 16 fwrite( $v, 4, $f )
+	$v[ 0 ] = 1 fwrite( $v, 2, $f ) //format
+	$v[ 0 ] = pta_channels fwrite( $v, 2, $f ) //channels
+	$v[ 0 ] = FREQ fwrite( $v, 4, $f ) //frames per second
+	$v[ 0 ] = FREQ * 2 * pta_channels fwrite( $v, 4, $f ) //bytes per second
+	$v[ 0 ] = 2 * pta_channels fwrite( $v, 2, $f ) //block align
+	$v[ 0 ] = 16 fwrite( $v, 2, $f ) //bits
+	
+	$xsize = get_xsize( get_screen() )
+	$ysize = get_ysize( get_screen() )
+	$hxsize = $xsize div 2
+	$hysize = $ysize div 2
+	$p = 0
+	$c = $xsize / $len1
+	$x0 = -4000
+	
+	//WAV DATA:
+	fwrite( "data", 4, $f )
+	$v[ 0 ] = $sdata_size fwrite( $v, 4, $f )
+	while( $len1 > 0 )
+	{
+	    $size = $buf_size
+	    if $size > $len1 { $size = $len1 }
+	    pta_audio_callback( 0, 0, $ch, $size, 0 )
+	    if pta_channels == 2
+	    {
+		copy( $buf, $ch1, 0, 0, $size, 2, 1 )
+		copy( $buf, $ch2, 1, 0, $size, 2, 1 )
+		fwrite( $buf, $size * 4, $f )
+	    }
+	    else
+	    {
+		fwrite( $ch1, $size * 2, $f )
+	    }
+	    
+	    $x = $p * $c - $hxsize
+	    dot( $x, - ( ( $ch1[ 0 ] * $hysize ) >> 15 ), WHITE )
+	    if $x - $x0 >= 4 
+	    {
+		$x0 = $x
+		frame()
+	    }
+	    
+	    $len1 - $size
+	    $p + $size
+	}
+	
+	remove( $v )
+	fclose( $f )
+    }
+    
+    remove( $buf )
+    remove( $ch )
+    remove( $ch1 )
+    remove( $ch2 )
+    
+    play_status = 0
+    
+    pta_reset()
+    
+    set_audio_callback( pta_audio_callback, 0, FREQ, INT16, pta_channels, pta_audio_flags )
+}
+
+fn pta_get_delta( $f )
+{
+    ret( ( $f / FREQ ) * 65536 )
+}
+
+fn pta_rec_close_file()
+{
+    if rec_f 
+    {
+	fclose( rec_f )
+	if rec_frames > 0 
+	{
+	    rec_f = fopen( REC_FILE, "r+b" )
+	    if rec_f
+	    {
+		fseek( rec_f, 4, SEEK_SET )
+		rec_temp32[ 0 ] = 4 + 24 + 8 + rec_frames * 2; fwrite( rec_temp32, 4, rec_f )
+		fseek( rec_f, 40, SEEK_SET )
+		rec_temp32[ 0 ] = rec_frames * 2; fwrite( rec_temp32, 4, rec_f )
+		fclose( rec_f )
+		fputs( "WAV closed\n" )
+	    }
+	}
+	rec_f = 0
+    }
+}
+
+fn pta_rec_thread_handler()
+{
+    fputs( "Record thread\n" )
+    while( rec_thread_exit == 0 )
+    {
+	w = 0
+	if rec
+	{
+	    if rec_wp != rec_rp
+	    {
+		if rec_f == 0 
+		{
+		    rec_f = fopen( REC_FILE, "wb" )
+		    rec_time = 0
+		    rec_frames = 0
+
+		    //WAV HEADER:
+		    fwrite( "RIFF", 4, rec_f )
+		    rec_temp32[ 0 ] = 4 + 24 + 8 + 44100*60*60; fwrite( rec_temp32, 4, rec_f )
+		    fwrite( "WAVE", 4, rec_f )
+
+		    //WAV FORMAT:
+		    fwrite( "fmt ", 4, rec_f )
+		    rec_temp32[ 0 ] = 16 fwrite( rec_temp32, 4, rec_f )
+		    rec_temp16[ 0 ] = 1 fwrite( rec_temp16, 2, rec_f ) //format
+		    rec_temp16[ 0 ] = 1 fwrite( rec_temp16, 2, rec_f ) //channels
+		    rec_temp32[ 0 ] = FREQ fwrite( rec_temp32, 4, rec_f ) //frames per second
+		    rec_temp32[ 0 ] = FREQ * 1 * 2 fwrite( rec_temp32, 4, rec_f ) //bytes per second
+		    rec_temp16[ 0 ] = 2 fwrite( rec_temp16, 2, rec_f ) //sample size (bytes)
+		    rec_temp16[ 0 ] = 16 fwrite( rec_temp16, 2, rec_f ) //bits
+		    
+		    //WAV DATA:
+		    fwrite( "data", 4, rec_f );
+		    rec_temp32[ 0 ] = FREQ*60*60 fwrite( rec_temp32, 4, rec_f )
+		}
+		to_write = ( rec_wp - rec_rp ) & ( rec_buf_size - 1 )
+		if rec_rp + to_write > rec_buf_size { to_write = rec_buf_size - rec_rp }
+		copy( rec_buf2, rec_buf, 0, rec_rp, to_write )
+		if rec_f { fwrite( rec_buf2, to_write*2, rec_f ) }
+                $amp = op_cn( OP_MAXMOD, rec_buf2, 0 )
+                if $amp > rec_max_amp { rec_max_amp = $amp }
+                rec_frames + to_write
+		rec_rp + to_write
+		rec_rp & ( rec_buf_size - 1 )
+		w = 1
+	    }
+	}
+	else
+	{
+	    if rec_f 
+            {
+                pta_rec_close_file()
+                rec_save_request = 1
+	    }
+	}
+	if w == 0 { sleep( 100 ) }
+    }
+    pta_rec_close_file()
+    fputs( "Record thread finished\n" )
+}
+
+fn pta_audio_callback( $stream, $userdata, $channels, $frames, $time, $in_channels )
+{
+    $rv = 1
+    $ptr = 0;
+    
+    pta_lock()
+    
+    $channels_num = get_size( $channels )
+    
+next_midi_evt:    
+    $s = midi_get_event( pta_midi_client, pta_midi_port, pta_midi_event )
+    if $s > 0
+    {
+	if pta_midi_in_handler
+	{
+	    pta_midi_in_handler( pta_midi_event, $s, midi_get_event_time( pta_midi_client, pta_midi_port ) )
+	}
+	midi_next_event( pta_midi_client, pta_midi_port )
+	go next_midi_evt
+    }
+    
+    //Get one tick size (one frame size = 256):
+    $one_tick = ( ( ( FREQ * 60 ) << 8 ) div BPM ) div ( LPB * TPL )
+    
+    if ticks_reset_req
+    {
+	tick_counter = $one_tick
+	tick_counter2 = TPL - 1
+	line_counter = -1
+	ticks_reset_req = 0
+    }
+    
+    //Main loop:
+    while( 1 )
+    {
+	//Get size of current piece:
+	$size = $frames - $ptr;
+	if $size > ( ( $one_tick - tick_counter ) >> 8 ) { $size = ( $one_tick - tick_counter ) >> 8 }
+	if ( $one_tick - tick_counter ) & 255 { $size + 1 } //size correction
+	if $size > $frames - $ptr { $size = $frames - $ptr }
+	if $size < 0 { $size = 0 }
+	
+	//Render:
+	if( $size > 0 )
+	{
+	    $filled = 0
+	    $t = 0 while( $t < max_tracks * 2 )
+	    {
+		$smp = samplers[ $t ]
+		if $smp[ SMP_SRC ] >= 0
+		{
+		    $smp2 = samplers2[ $t ]
+		    $smp_size = $smp[ SMP_SRC_SIZE ]
+		    if $smp_size == 0 { $smp_size = get_size( $smp[ SMP_SRC ] ) }
+		    if $smp[ SMP_SRC_OFF_H ] >= $smp_size
+		    {
+			//End of sample:
+			$smp[ SMP_SRC ] = -1
+			$smp2[ SMP_SRC ] = -1
+			sampler_snd[ $t ] = -1
+		    }
+		    else
+		    {
+			//Play the sample:
+			//Channel 1
+			$smp[ SMP_DEST ] = sampler_buf
+			$smp[ SMP_DEST_OFF ] = 0
+			$smp[ SMP_DEST_LEN ] = $size
+			if pta_1bit 
+			    { $smp[ SMP_VOL1 ] = sampler_vol[ $t ] }
+			else
+			    { $smp[ SMP_VOL1 ] = ( sampler_vol[ $t ] * VOLUME ) div 100 }
+			$smp[ SMP_VOL2 ] = $smp[ SMP_VOL1 ]
+			sampler( $smp )
+			if pta_1bit
+			{
+			    op_cn( OP_GREATER, sampler_buf, 8192, 0, $size )
+			    op_cn( OP_LSHIFT, sampler_buf, 15, 0, $size )
+			}
+			else
+			{
+			    //=== Anticlick =============================
+			    $acc = sampler_acc[ $t ]
+			    if $acc
+			    {
+				if $acc > $size { $acc = $size }
+				envelope2p( sampler_buf, 0, 32768, 0, $acc, sampler_ac[ $t ], 0 )
+				sampler_acc[ $t ] = 0
+			    }
+			    sampler_ac[ $t ] = sampler_buf[ $size - 1 ]
+			    //===========================================
+			}
+			if $filled == 0
+			{
+			    copy( $channels[ 0 ], sampler_buf, $ptr, 0, $size )
+			}
+			else
+			{
+			    op_cc( OP_SADD, $channels[ 0 ], sampler_buf, $ptr, 0, $size )
+			}
+			if $channels_num > 1
+			{
+			    if $smp2[ SMP_SRC ] >= 0
+			    {
+				//Channel 2
+				$smp2[ SMP_DEST ] = sampler_buf
+				$smp2[ SMP_DEST_OFF ] = 0
+				$smp2[ SMP_DEST_LEN ] = $size
+				$smp2[ SMP_VOL1 ] = $smp[ SMP_VOL1 ]
+				$smp2[ SMP_VOL2 ] = $smp[ SMP_VOL1 ]
+				sampler( $smp2 )
+				if pta_1bit
+				{
+				    op_cn( OP_GREATER, sampler_buf, 8192, 0, $size )
+				    op_cn( OP_LSHIFT, sampler_buf, 15, 0, $size )
+				}
+				else
+				{
+				    //=== Anticlick =============================
+				    if $acc
+				    {
+					envelope2p( sampler_buf, 0, 32768, 0, $acc, sampler_ac2[ $t ], 0 )
+				    }
+				    sampler_ac2[ $t ] = sampler_buf[ $size - 1 ]
+				    //===========================================
+				}
+			    }
+			    if $filled == 0
+			    {
+				copy( $channels[ 1 ], sampler_buf, $ptr, 0, $size )
+			    }
+			    else
+			    {
+				op_cc( OP_SADD, $channels[ 1 ], sampler_buf, $ptr, 0, $size )
+			    }
+			}
+			$filled = 1
+		    }
+		}
+		$t + 1
+	    }
+	    if $filled == 0
+	    {
+		clean( $channels[ 0 ], 0, $ptr, $size )
+		if $channels_num > 1 { clean( $channels[ 1 ], 0, $ptr, $size ) }
+	    }
+	    else
+	    {
+		if pta_1bit
+		{
+		    if VOLUME == 0 { clean( $channels[ 0 ], 0, $ptr, $size ) }
+		    else 
+		    {
+			op_cn( OP_RSHIFT, $channels[ 0 ], ( ( 100 - VOLUME ) * 10 ) div 100, $ptr, $size )
+		    }
+		    if $channels_num > 1
+		    {
+			copy( $channels[ 1 ], $channels[ 0 ], $ptr, $ptr, $size )
+		    }
+		}
+	    }
+	}
+	
+	$ptr + $size;
+	tick_counter + 256 * $size;
+	
+	if tick_counter >= $one_tick
+	{
+	    //Next tick:
+	    
+	    tick_counter - $one_tick  
+	    
+	    if play_status
+	    {
+		tick_counter2 + 1
+		if tick_counter2 >= TPL
+		{
+		    //Next line:
+		    
+		    tick_counter2 = 0
+		    line_counter + 1
+		    
+		    $pat = pats[ pattab[ cur_pat ] ]
+		    $pat_lines = get_ysize( $pat )
+		    $pat_tracks = get_xsize( $pat )
+		    
+		    if line_counter >= $pat_lines
+		    {
+			line_counter = 0
+			if play_status == 1
+			{
+			    cur_pat + 1
+			    if cur_pat >= get_size( pattab ) { cur_pat = 0 }
+			    $pat = pats[ pattab[ cur_pat ] ]
+			    $pat_lines = get_ysize( $pat )
+			    $pat_tracks = get_xsize( $pat )
+			}
+		    }
+		    
+		    //Handle this line:
+		    
+		    $pat_ptr = line_counter * $pat_tracks
+		    $t = 0 while( $t < $pat_tracks )
+		    {
+			$evt = $pat[ $pat_ptr ]
+			if $evt
+			{
+			    $n = ( $evt & 255 ) - 1
+			    $snd_num = ( $evt >> 8 ) & 255
+			    $vel = ( $evt >> 16 ) & 255
+			    pta_set_event_nolock( $t, $n, $snd_num, $vel )
+			}
+			$pat_ptr + 1
+			$t + 1
+		    }
+		    
+		    ui_redraw = 1
+		}
+	    }
+	}
+	
+	if $ptr >= $frames
+	{
+	    go au_loop_end
+	}
+    }
+au_loop_end:
+
+    if pta_visual
+    {
+	copy( pta_visual_buf, $channels[ 0 ] )
+    }
+    
+    if $in_channels >= 0
+    {
+	if pta_input_visual
+	{
+	    copy( pta_input_visual_buf, $in_channels[ 0 ] )
+	}
+        if rec 
+        {
+            $p = 0
+            while( $p < $frames )
+            {
+                $size = $frames - $p;
+                if $size > rec_buf_size - rec_wp { $size = rec_buf_size - rec_wp }
+
+                copy( rec_buf, $in_channels[ 0 ], rec_wp, $p, $size )
+
+                $p + $size
+                $new_wp = rec_wp + $size
+                if $new_wp >= rec_buf_size { $new_wp = 0 }
+                rec_wp = $new_wp
+            }
+        }
+    }
+
+    pta_unlock()
+    
+    ret( $rv )
+}

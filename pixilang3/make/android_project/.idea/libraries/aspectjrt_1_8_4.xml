@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="aspectjrt-1.8.4">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../../../lib_sundog/various/android/alib/libs/aspectjrt-1.8.4.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

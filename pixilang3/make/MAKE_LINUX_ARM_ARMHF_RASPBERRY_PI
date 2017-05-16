@@ -1,0 +1,3 @@
+set -e
+make TARGET_OS=linux_x11_opengles_raspberry_pi TARGET_ARCH=arm FLOAT_ABI=hard COLOR_TYPE=COLOR32BITS
+make install TARGET_OS=linux_x11_opengles_raspberry_pi TARGET_ARCH=arm FLOAT_ABI=hard ARCH_SUFFIX=_armhf_raspberry_pi

@@ -1,0 +1,90 @@
+//gl_callback can be called:
+//  by user;
+//  by Pixilang engine at any time (after window resize for example).
+fn gl_callback( $userdata )
+{
+    t = get_timer( 0 )
+    t = ( t & ( 1024 * 32 - 1 ) ) / ( 1024 * 32 )
+    t2 = t * M_PI * 2
+
+    t_reset()
+    $s = 1 + ( sin( t2 * 4 ) + 1 ) * 256
+    t_scale( $s, $s, 1 )
+    t_rotate( t * 360, 0, 0, 1 )
+
+    set_screen( GL_SCREEN ) //Enable OpenGL drawing mode
+
+    transp( 255 )
+    clear()
+
+    gl_use_prog( gl_prog ) //Use user-defined GLSL program (vertex shader + fragment shader)
+    gl_uniform( gl_prog.g_c, 0.1, 0.7 )
+
+    $s = WINDOW_XSIZE / get_xsize( img )
+    pixi( img, WINDOW_XSIZE * 0.098, WINDOW_XSIZE * 0.1, WHITE, $s, $s )
+
+    gl_use_prog() //Back to default GLSL program
+
+    t_reset()
+    print( "This music was created\nin PixiTracker\nwarmplace.ru/soft/pixitracker", 0, 0, WHITE )
+
+    set_screen( 0 ) //Back to the default screen
+}
+
+start_timer( 0 )
+
+gl_vshader = GL_SHADER_TEX_RGB_SOLID //Vertex shader = default shader for solid primitives drawing
+gl_fshader = //Fragment shader
+"PRECISION( HIGHP, float )
+uniform sampler2D g_texture;
+uniform vec2 g_c;
+uniform vec4 g_color;
+const int iter = 64;
+IN vec2 tex_coord_var;
+void main()
+{
+    vec2 pos = tex_coord_var;
+
+    vec2 z;
+    z.x = 3.0 * ( pos.x - 0.5 );
+    z.y = 3.0 * ( pos.y - 0.5 );
+
+    int i;
+    for( i = 0; i < iter; i++ )
+    {
+	float x = ( z.x * z.x - z.y * z.y ) + g_c.x;
+	float y = ( z.y * z.x + z.x * z.y ) + g_c.y;
+
+	if( ( x * x + y * y ) > 4.0 ) break;
+	z.x = x;
+	z.y = y;
+    }
+
+    float c = float( i ) / 40.0;
+    gl_FragColor = vec4( c * 0.5, c * 0.5, c, 1 ) * g_color;
+}
+"
+gl_prog = gl_new_prog( gl_vshader, gl_fshader )
+
+img = new( 16, 16 )
+clean( img, RED )
+
+set_gl_callback(
+gl_callback, //OpenGL frame drawing function
+0 ) //Some user-defined data
+
+include "pixitracker_audio_engine.pixi"
+
+pta_init()
+pta_load_song( "workdays.piximod" )
+pta_play( 1 )
+
+while 1
+{
+    while( get_event() ) { if EVT[ EVT_TYPE ] == EVT_QUIT { breakall } }
+    frame()
+}
+
+pta_deinit()
+
+remove( gl_prog )

@@ -1,0 +1,16 @@
+#ifdef __OBJC__
+    #import <Cocoa/Cocoa.h>
+#endif
+
+#define OSX 
+#define OPENGL
+#define GLNORETAIN
+#define GLZBUF
+#define COLOR32BITS 
+#define CPUMARK 10 
+#define NOVIDEO
+#define NOVCAP
+#define ARCH_X86_64
+#define ARCH_NAME "x86_64"
+
+#include "../../../../lib_gif/config.h"

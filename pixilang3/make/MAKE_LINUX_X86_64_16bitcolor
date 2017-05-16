@@ -1,0 +1,7 @@
+set -e
+
+make clean
+make -j8 TARGET_OS=linux_x11_opengl TARGET_ARCH=x86_64 COLOR_TYPE=COLOR16BITS MAKE_WITH_MULTITOUCH=true
+make install TARGET_OS=linux_x11_opengl TARGET_ARCH=x86_64 MAKE_WITH_MULTITOUCH=true APPNAME_SUFFIX=_16bitcolor
+make clean
+mv ../release/pixilang/pixilang/linux_x86_64/pixilang_16bitcolor ../../heap/pixilang3/bin/

@@ -1,0 +1,4 @@
+set -e
+
+make -j8 TARGET_OS=windows_opengl TARGET_ARCH=x86 MAKE_WITH_CONSOLE=true COLOR_TYPE=COLOR32BITS
+make install TARGET_OS=windows_opengl TARGET_ARCH=x86 MAKE_WITH_CONSOLE=true APPNAME_SUFFIX=_console

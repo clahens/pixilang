@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="isoparser-1.0.5.4">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../../../lib_sundog/various/android/alib/libs/isoparser-1.0.5.4.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
